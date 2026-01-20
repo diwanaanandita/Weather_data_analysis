@@ -1,17 +1,13 @@
 import xarray as xr
 
 class WeatherRepository:
-    def __init__(self, csv_file="weather_data.csv"):
+    def __init__(self):
         pass
 
-    def load_netcdf(self, path):
+    def load_data(self, path):
         """Load netCDF data as Xarray DataArray with Dask backend."""
-        # Open with chunks for large datasets (adjust based on dims)
-        ds = xr.open_dataset(path, chunks={'time': 100, 'lat': 10, 'lon': 10})  # Assuming standard dims; tune as needed
-        # Select temperature variable (assuming 'air' for 2m temperature)
-        if 'air' in ds:
-            da = ds['air']
-        else:
-            raise ValueError("'air' variable not found in netCDF")
-        return da
-    
+        ds = xr.open_dataset(path, chunks={'time': 100, 'lat': 10, 'lon': 10})  
+
+        if "air" not in ds:
+            raise ValueError("'air' variable not found")
+        return ds["air"]
