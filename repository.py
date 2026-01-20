@@ -1,24 +1,17 @@
-import urllib.request
-import json
-import pandas as pd
+import xarray as xr
 
 class WeatherRepository:
     def __init__(self, csv_file="weather_data.csv"):
-        self.csv_file = csv_file
+        pass
 
-    def fetch_json(self, url):
-        """Fetch JSON data from URL."""
-        with urllib.request.urlopen(url) as response:
-            data = json.load(response)
-        return data
-
-    def save_to_csv(self, data):
-        """Save JSON data to CSV using Pandas."""
-        times = data['hourly']['time']
-        temps = data['hourly']['temperature_2m']
-
-        df = pd.DataFrame({"time": times, "temperature": temps})
-        df.to_csv(self.csv_file, index=False)
-        return self.csv_file
+    def load_netcdf(self, path):
+        """Load netCDF data as Xarray DataArray with Dask backend."""
+        # Open with chunks for large datasets (adjust based on dims)
+        ds = xr.open_dataset(path, chunks={'time': 100, 'lat': 10, 'lon': 10})  # Assuming standard dims; tune as needed
+        # Select temperature variable (assuming 'air' for 2m temperature)
+        if 'air' in ds:
+            da = ds['air']
+        else:
+            raise ValueError("'air' variable not found in netCDF")
+        return da
     
-#temp humidity; chunk and initilize large DS; jdrr/netcdf xarry.leaddataset with dask backend -  examples.xarrays

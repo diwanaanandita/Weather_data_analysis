@@ -1,6 +1,7 @@
 from repository import WeatherRepository
 from service import WeatherService
 from view import WeatherView
+import os 
 
 class WeatherController:
     def __init__(self):
@@ -9,15 +10,13 @@ class WeatherController:
         self.service = None
 
     def run(self):
-        url = "https://api.open-meteo.com/v1/forecast?latitude=28.61&longitude=77.23&hourly=temperature_2m"
 
-        data = self.repo.fetch_json(url)
-        csv_file = self.repo.save_to_csv(data)
-        self.view.show_message(f"Data saved to {csv_file}")
+        netcdf_path = os.path.join("input_data", "air.2m.gauss.1948.nc")
 
-        self.service = WeatherService(csv_file)
-        self.service.load_xarray()
+        xr_data = self.repo.load_netcdf(netcdf_path)
+        self.view.show_message(f"Data loaded from {netcdf_path}")
 
+        self.service = WeatherService(xr_data)
         stats = self.service.compute_stats()
 
         self.view.show_stats(stats)
