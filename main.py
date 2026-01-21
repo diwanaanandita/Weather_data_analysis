@@ -50,8 +50,8 @@ def parse_args():
     baseline_end = None
 
     if args.operation == "baseline" or args.operation == "anomaly":
-        baseline_start = int(input("Enter baseline start year: ").strip())
-        baseline_end = int(input("Enter baseline end year: ").strip())
+        baseline_start = int(input("\nEnter baseline start year greater than 1947: ").strip())
+        baseline_end = int(input("\nEnter baseline end year less than 1958: ").strip())
 
         if baseline_start > baseline_end:
             print("Start year must be <= end year")
@@ -72,4 +72,3 @@ if __name__ == "__main__":
     controller = WeatherController(service, view, NETCDF_PATH)
 
     controller.run(operation, baseline_start, baseline_end)
-
