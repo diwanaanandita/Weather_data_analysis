@@ -4,7 +4,10 @@ class WeatherView:
         print(msg)
 
     @staticmethod
-    def show_stats(stats):
+    def show_stats(operation):
         print("Weather statistics:")
-        for k, v in stats.items():
+        for k, v in operation.items():
             print(f"{k.capitalize()}: {v}")
+
+    def show_result(self, operation, value):
+        print(f"{operation.upper()} temperature: {value}")
