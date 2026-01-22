@@ -51,3 +51,35 @@ class AnomalyStrategy(WeatherOperationStrategy):
         view.show_message(
             f"Anomaly computed and saved ({start}–{end})"
         )
+
+class LocationAnomalyStrategy(WeatherOperationStrategy):
+    
+    def execute(self, service, view, **kwargs):
+        lat = kwargs.get("latitude")
+        lon = kwargs.get("longitude")
+        
+        if lat is None or lon is None:
+            view.show_message("Error: latitude and longitude required")
+            return
+        
+        try:
+            location_data = service.get_location_anomaly(lat, lon)
+            view.show_location_data(location_data, lat, lon)
+        except Exception as e:
+            view.show_message(f"Error retrieving location anomaly: {str(e)}")
+
+class LocationBaselineStrategy(WeatherOperationStrategy):
+    
+    def execute(self, service, view, **kwargs):
+        lat = kwargs.get("latitude")
+        lon = kwargs.get("longitude")
+        
+        if lat is None or lon is None:
+            view.show_message("Error: latitude and longitude required")
+            return
+        
+        try:
+            location_data = service.get_location_baseline(lat, lon)
+            view.show_location_data(location_data, lat, lon)
+        except Exception as e:
+            view.show_message(f"Error retrieving location baseline: {str(e)}")

@@ -12,6 +12,9 @@ class WeatherService:
         self.baseline_start = None
         self.baseline_end = None
         self.outdir = OUTDIR
+        self.anomaly_file_name = 'temperature_anomaly.nc'
+        self.baseline_file_name = 'baseline.nc'
+        self.yearly_avg_file_name = 'yearly_average.nc'
     
     def _ensure_data_loaded(self, data):
         if data is None:
@@ -59,6 +62,9 @@ class WeatherService:
         if self.baseline_start is None or self.baseline_end is None:
             raise RuntimeError("baseline_start and baseline_end must be set before computing baseline")
         baseline = self.yearly_avg.sel(year=slice(self.baseline_start, self.baseline_end)).mean(dim="year")
+        baseline = baseline.expand_dims(
+            year=self.yearly_avg.year
+        )
         baseline.name = "baseline_temperature"
         self.baseline = baseline.persist()
         return self.baseline
@@ -81,9 +87,15 @@ class WeatherService:
 
     def _validate_years(self, start, end):
         if start < int("1948") or end > int("1957"):
-            raise ValueError("Baseline start and end years outside reange 1948-1957 \n")
+            raise ValueError("Baseline start and end years outside range 1948-1957 \n")
         if start > end:
             raise ValueError("Baseline start year must be <= end year \n")
+        
+    def _validate_coordinates(self, lat, lon):
+        if not (-90 <= lat <= 90):
+            raise ValueError("Latitude must be between -90 and 90")
+        if not (-180 <= lon <= 180):
+            raise ValueError("Longitude must be between -180 and 180")
 
 
     def _compute_and_save(self, path, baseline_start, baseline_end, include_anomaly):
@@ -97,13 +109,13 @@ class WeatherService:
         self.baseline = self.compute_baseline()
 
         outputs = {
-            "yearly_average.nc": self.yearly_avg,
-            "baseline.nc": self.baseline,
+            self.yearly_avg_file_name: self.yearly_avg,
+            self.baseline_file_name: self.baseline,
         }
 
         if include_anomaly:
             self.anomaly = self.compute_temperature_anomaly()
-            outputs["temperature_anomaly.nc"] = self.anomaly
+            outputs[self.anomaly_file_name] = self.anomaly
 
         for fname, data in outputs.items():
             data.to_netcdf(os.path.join(self.outdir, fname))
@@ -119,3 +131,27 @@ class WeatherService:
 
     def compute_and_save_anomaly(self, path, baseline_start, baseline_end):
         self._compute_and_save(path,baseline_start, baseline_end, include_anomaly=True)
+
+    def get_location_data(self, lat, lon, file_name, dimension):
+        self._validate_coordinates(lat, lon)
+        file_path = os.path.join(self.outdir, file_name)
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found at {file_path}. Run compute_and_save() first.")
+
+        data_ds = xr.open_dataset(file_path, chunks="auto", engine='netcdf4')
+
+        location = data_ds[dimension].sel(
+            lat=lat, 
+            lon=lon, 
+            method='nearest'
+        )
+        
+        return location
+        
+    def get_location_anomaly(self, lat, lon):
+        dimension = 'temperature_anomaly'
+        return self.get_location_data(lat, lon, self.anomaly_file_name, dimension)
+    
+    def get_location_baseline(self, lat, lon):
+        dimension = 'baseline_temperature'
+        return self.get_location_data(lat, lon, self.baseline_file_name, dimension)

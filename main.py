@@ -15,7 +15,7 @@ def parse_args():
 
     parser.add_argument(
         "operation",
-        choices=["mean", "max", "min", "baseline", "anomaly"],
+        choices=["mean", "max", "min", "baseline", "anomaly", "location_anomaly", "location_baseline"],
         nargs="?",
         help="Operation to perform"
     )
@@ -29,15 +29,19 @@ def parse_args():
         print("3. Min temperature")
         print("4. Baseline")
         print("5. Anomaly")
+        print("6. Location anomaly")
+        print("7. Location baseline")
 
-        choice = input("\nEnter choice (1/2/3/4/5): ").strip()
+        choice = input("\nEnter choice (1/2/3/4/5/6/7): ").strip()
 
         mapping = {
             "1": "mean",
             "2": "max",
             "3": "min",
             "4": "baseline",
-            "5": "anomaly"
+            "5": "anomaly",
+            "6": "location_anomaly",
+            "7": "location_baseline"
         }
 
         if choice not in mapping:
@@ -48,20 +52,23 @@ def parse_args():
 
     baseline_start = None
     baseline_end = None
+    latitude = None
+    longitude = None
 
     if args.operation == "baseline" or args.operation == "anomaly":
         baseline_start = int(input("\nEnter baseline start year greater than 1947: ").strip())
         baseline_end = int(input("\nEnter baseline end year less than 1958: ").strip())
 
-        if baseline_start > baseline_end:
-            print("Start year must be <= end year")
-            sys.exit(1)
-
-    return args.operation, baseline_start, baseline_end
+    elif args.operation == "location_anomaly" or args.operation == "location_baseline":
+            
+            latitude = float(input("\nEnter latitude (-90 to 90): ").strip())
+            longitude = float(input("Enter longitude (-180 to 180): ").strip())
+            
+    return args.operation, baseline_start, baseline_end, latitude, longitude
 
 
 if __name__ == "__main__":
-    operation, baseline_start, baseline_end = parse_args()
+    operation, baseline_start, baseline_end, latitude, longitude = parse_args()
     NETCDF_PATH = "input_data"
     OUTDIR = "output"
     os.makedirs(OUTDIR, exist_ok=True)
@@ -71,4 +78,4 @@ if __name__ == "__main__":
     service = WeatherService(repo, OUTDIR)
     controller = WeatherController(service, view, NETCDF_PATH)
 
-    controller.run(operation, baseline_start, baseline_end)
+    controller.run(operation, baseline_start, baseline_end, latitude, longitude)

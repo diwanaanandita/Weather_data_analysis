@@ -21,3 +21,9 @@ class WeatherRepository:
         if 'air' not in ds:
             raise ValueError("'air' variable not found in netCDF")
         return ds
+    
+    def load_anomaly(self, anomaly_path):
+        """Load temperature anomaly from NetCDF file."""
+        if not os.path.exists(anomaly_path):
+            raise FileNotFoundError(f"Anomaly file not found: {anomaly_path}")
+        return xr.open_dataset(anomaly_path)

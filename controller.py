@@ -4,6 +4,8 @@ from strategies import (
     MinStrategy,
     BaselineStrategy,
     AnomalyStrategy,
+    LocationAnomalyStrategy,
+    LocationBaselineStrategy
 )
 
 
@@ -14,6 +16,8 @@ class WeatherController:
         "min": MinStrategy(),
         "baseline": BaselineStrategy(),
         "anomaly": AnomalyStrategy(),
+        "location_anomaly": LocationAnomalyStrategy(),
+        "location_baseline": LocationBaselineStrategy(),
     }
 
     def __init__(self, service, view, path):
@@ -21,7 +25,7 @@ class WeatherController:
         self.view = view
         self.netcdf_path = path
 
-    def run(self, operation, baseline_start=None, baseline_end=None):
+    def run(self, operation, baseline_start=None, baseline_end=None, latitude=None, longitude=None):
 
         strategy = self.STRATEGY_MAP.get(operation)
 
@@ -34,5 +38,6 @@ class WeatherController:
             path=self.netcdf_path,
             baseline_start=baseline_start,
             baseline_end=baseline_end,
-
+            latitude=latitude,
+            longitude=longitude,
         )
