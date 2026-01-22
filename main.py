@@ -15,7 +15,7 @@ def parse_args():
 
     parser.add_argument(
         "operation",
-        choices=["mean", "max", "min", "baseline"],
+        choices=["mean", "max", "min", "baseline", "anomaly"],
         nargs="?",
         help="Operation to perform"
     )

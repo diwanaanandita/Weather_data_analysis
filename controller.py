@@ -1,4 +1,21 @@
+from strategies import (
+    MeanStrategy,
+    MaxStrategy,
+    MinStrategy,
+    BaselineStrategy,
+    AnomalyStrategy,
+)
+
+
 class WeatherController:
+    STRATEGY_MAP = {
+        "mean": MeanStrategy(),
+        "max": MaxStrategy(),
+        "min": MinStrategy(),
+        "baseline": BaselineStrategy(),
+        "anomaly": AnomalyStrategy(),
+    }
+
     def __init__(self, service, view, path):
         self.service = service
         self.view = view
@@ -6,32 +23,16 @@ class WeatherController:
 
     def run(self, operation, baseline_start=None, baseline_end=None):
 
-        self.service.fetch_data(self.netcdf_path)
-        self.view.show_message(f"Data loaded from {self.netcdf_path}")
+        strategy = self.STRATEGY_MAP.get(operation)
 
-        if operation == "mean":
-            result = self.service.compute_mean()
-            self.view.show_result("Mean temperature", result)
-
-        elif operation == "max":
-            result = self.service.compute_max()
-            self.view.show_result("Max temperature", result)
-
-        elif operation == "min":
-            result = self.service.compute_min()
-            self.view.show_result("Min temperature", result)
-
-        elif operation == "baseline":
-            self.service.compute_and_save_baseline(baseline_start, baseline_end)
-            self.view.show_message(
-                f"Baseline computed and saved ({baseline_start}–{baseline_end})"
-            )
-
-        elif operation == "anomaly":
-            self.service.compute_and_save_anomaly(baseline_start, baseline_end)
-            self.view.show_message(
-                f"Anomaly computed and saved ({baseline_start}–{baseline_end})"
-            )
-
-        else:
+        if not strategy:
             raise ValueError(f"Unsupported operation: {operation}")
+
+        strategy.execute(
+            service=self.service,
+            view=self.view,
+            path=self.netcdf_path,
+            baseline_start=baseline_start,
+            baseline_end=baseline_end,
+
+        )
