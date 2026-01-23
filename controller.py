@@ -1,43 +1,64 @@
-from strategies import (
-    MeanStrategy,
-    MaxStrategy,
-    MinStrategy,
-    BaselineStrategy,
-    AnomalyStrategy,
-    LocationAnomalyStrategy,
-    LocationBaselineStrategy
-)
+from abc import ABC, abstractmethod
 
 
-class WeatherController:
-    STRATEGY_MAP = {
-        "mean": MeanStrategy(),
-        "max": MaxStrategy(),
-        "min": MinStrategy(),
-        "baseline": BaselineStrategy(),
-        "anomaly": AnomalyStrategy(),
-        "location_anomaly": LocationAnomalyStrategy(),
-        "location_baseline": LocationBaselineStrategy(),
-    }
+class WeatherOperationStrategy(ABC):
+    @abstractmethod
+    def execute(self, service, view, **kwargs):
+        pass
 
-    def __init__(self, service, view, path):
-        self.service = service
-        self.view = view
-        self.netcdf_path = path
 
-    def run(self, operation, baseline_start=None, baseline_end=None, latitude=None, longitude=None):
+class MeanStrategy(WeatherOperationStrategy):
+    def execute(self, service, view, **kwargs):
+        result = service.compute_mean()
+        view.show_result("Mean temperature", result)
 
-        strategy = self.STRATEGY_MAP.get(operation)
 
-        if not strategy:
-            raise ValueError(f"Unsupported operation: {operation}")
+class MaxStrategy(WeatherOperationStrategy):
+    def execute(self, service, view, **kwargs):
+        result = service.compute_max()
+        view.show_result("Max temperature", result)
 
-        strategy.execute(
-            service=self.service,
-            view=self.view,
-            path=self.netcdf_path,
-            baseline_start=baseline_start,
-            baseline_end=baseline_end,
-            latitude=latitude,
-            longitude=longitude,
-        )
+
+class MinStrategy(WeatherOperationStrategy):
+    def execute(self, service, view, **kwargs):
+        result = service.compute_min()
+        view.show_result("Min temperature", result)
+
+
+class BaselineStrategy(WeatherOperationStrategy):
+    def execute(self, service, view, **kwargs):
+        start = kwargs.get("baseline_start")
+        end = kwargs.get("baseline_end")
+
+        service.compute_and_save_baseline(start, end)
+        view.show_message(f"Baseline computed and saved ({start}–{end})")
+
+
+class AnomalyStrategy(WeatherOperationStrategy):
+    def execute(self, service, view, **kwargs):
+        start = kwargs.get("baseline_start")
+        end = kwargs.get("baseline_end")
+
+        service.compute_and_save_anomaly(start, end)
+        view.show_message(f"Anomaly computed and saved ({start}–{end})")
+
+
+class LocationAnomalyStrategy(WeatherOperationStrategy):
+
+    def execute(self, service, view, latitude, longitude, **kwargs):
+
+        try:
+            location_data = service.get_location_anomaly(latitude, longitude)
+            view.show_location_data(location_data, latitude, longitude)
+        except Exception as e:
+            view.show_message(f"Error retrieving location anomaly: {str(e)}")
+
+
+class LocationBaselineStrategy(WeatherOperationStrategy):
+
+    def execute(self, service, view, latitude, longitude, **kwargs):
+        try:
+            location_data = service.get_location_baseline(latitude, longitude)
+            view.show_location_data(location_data, latitude, longitude)
+        except Exception as e:
+            view.show_message(f"Error retrieving location baseline: {str(e)}")

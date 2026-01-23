@@ -1,23 +1,35 @@
 import argparse
 import sys
-import os
-
-from controller import WeatherController
 from service import WeatherService
 from repository import WeatherRepository
 from view import WeatherView
+from controller import (
+    MeanStrategy,
+    MaxStrategy,
+    MinStrategy,
+    BaselineStrategy,
+    AnomalyStrategy,
+    LocationAnomalyStrategy,
+    LocationBaselineStrategy,
+)
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Weather CLI application"
-    )
+    parser = argparse.ArgumentParser(description="Weather CLI application")
 
     parser.add_argument(
         "operation",
-        choices=["mean", "max", "min", "baseline", "anomaly", "location_anomaly", "location_baseline"],
+        choices=[
+            "mean",
+            "max",
+            "min",
+            "baseline",
+            "anomaly",
+            "location_anomaly",
+            "location_baseline",
+        ],
         nargs="?",
-        help="Operation to perform"
+        help="Operation to perform",
     )
 
     args = parser.parse_args()
@@ -41,7 +53,7 @@ def parse_args():
             "4": "baseline",
             "5": "anomaly",
             "6": "location_anomaly",
-            "7": "location_baseline"
+            "7": "location_baseline",
         }
 
         if choice not in mapping:
@@ -56,26 +68,48 @@ def parse_args():
     longitude = None
 
     if args.operation == "baseline" or args.operation == "anomaly":
-        baseline_start = int(input("\nEnter baseline start year greater than 1947: ").strip())
+        baseline_start = int(
+            input("\nEnter baseline start year greater than 1947: ").strip()
+        )
         baseline_end = int(input("\nEnter baseline end year less than 1958: ").strip())
 
     elif args.operation == "location_anomaly" or args.operation == "location_baseline":
-            
-            latitude = float(input("\nEnter latitude (-90 to 90): ").strip())
-            longitude = float(input("Enter longitude (-180 to 180): ").strip())
-            
+
+        latitude = float(input("\nEnter latitude (-90 to 90): ").strip())
+        longitude = float(input("Enter longitude (-180 to 180): ").strip())
+
     return args.operation, baseline_start, baseline_end, latitude, longitude
 
+
+STRATEGY_MAP = {
+    "mean": MeanStrategy(),
+    "max": MaxStrategy(),
+    "min": MinStrategy(),
+    "baseline": BaselineStrategy(),
+    "anomaly": AnomalyStrategy(),
+    "location_anomaly": LocationAnomalyStrategy(),
+    "location_baseline": LocationBaselineStrategy(),
+}
 
 if __name__ == "__main__":
     operation, baseline_start, baseline_end, latitude, longitude = parse_args()
     NETCDF_PATH = "input_data"
     OUTDIR = "output"
-    os.makedirs(OUTDIR, exist_ok=True)
 
     view = WeatherView()
-    repo = WeatherRepository()
-    service = WeatherService(repo, OUTDIR)
-    controller = WeatherController(service, view, NETCDF_PATH)
+    repo = WeatherRepository(NETCDF_PATH, OUTDIR)
+    service = WeatherService(repo)
 
-    controller.run(operation, baseline_start, baseline_end, latitude, longitude)
+    strategy = STRATEGY_MAP.get(operation)
+
+    if not strategy:
+        raise ValueError(f"Unsupported operation: {operation}")
+
+    strategy.execute(
+        service=service,
+        view=view,
+        baseline_start=baseline_start,
+        baseline_end=baseline_end,
+        latitude=latitude,
+        longitude=longitude,
+    )

@@ -1,157 +1,125 @@
-import xarray as xr
 import dask
-import os
+
+
+ANOMALY_FILE_NAME = "temperature_anomaly.nc"
+BASELINE_FILE_NAME = "baseline.nc"
+YEARLY_AVG_FILE_NAME = "yearly_average.nc"
+DIMENSION_TEMPERATURE_ANOMALY = "temperature_anomaly"
+DIMENSION_TEMPERATURE_BASELINE = "baseline_temperature"
+DIMENSION_TEMPERATURE_YEARLY_AVG = "yearly_mean_temperature"
+
 
 class WeatherService:
-    def __init__(self, repository, OUTDIR):
+    def __init__(self, repository):
         self.repo = repository
-        self.yearly_avg = None
-        self.baseline = None
-        self.anomaly = None
 
-        self.baseline_start = None
-        self.baseline_end = None
-        self.outdir = OUTDIR
-        self.anomaly_file_name = 'temperature_anomaly.nc'
-        self.baseline_file_name = 'baseline.nc'
-        self.yearly_avg_file_name = 'yearly_average.nc'
-    
     def _ensure_data_loaded(self, data):
         if data is None:
             raise RuntimeError("Data not loaded. Call fetch_data() first.")
 
-
-    def compute_mean(self, path):
-        data = self.repo.load_data(path)
+    def compute_mean(self):
+        data = self.repo.read_data()
         self._ensure_data_loaded(data)
-        result = data['air'].mean()
+        result = data["air"].mean()
         (result,) = dask.compute(result)
         return float(result)
 
-    def compute_max(self, path):
-        data = self.repo.load_data(path)
+    def compute_max(self):
+        data = self.repo.read_data()
         self._ensure_data_loaded(data)
-        result = data['air'].max()
+        result = data["air"].max()
         (result,) = dask.compute(result)
         return float(result)
 
-    def compute_min(self, path):
-        data = self.repo.load_data(path)
+    def compute_min(self):
+        data = self.repo.read_data()
         self._ensure_data_loaded(data)
-        result = data['air'].min()
+        result = data["air"].min()
         (result,) = dask.compute(result)
         return float(result)
 
-    def compute_yearly_average(self, path):
-        data = self.repo.load_data(path)
+    def compute_yearly_average(self):
+        data = self.repo.read_data()
         self._ensure_data_loaded(data)
-        if self.yearly_avg is not None:
-            return self.yearly_avg
         if "air" not in getattr(data, "data_vars", {}):
             raise RuntimeError("air not found; call convert_kelvin_to_celsius() first")
         yearly_avg = data["air"].groupby("time.year").mean(dim="time")
-        yearly_avg.name = "yearly_mean_temperature"
-        self.yearly_avg = yearly_avg.persist()
-        return self.yearly_avg
+        yearly_avg.name = DIMENSION_TEMPERATURE_YEARLY_AVG
+        yearly_avg = yearly_avg.persist()
+        return yearly_avg
 
-    def compute_baseline(self):
-        if self.baseline is not None:
-            return self.baseline
-        if self.yearly_avg is None:
-            raise RuntimeError("yearly_avg not computed; call compute_yearly_average() first")
-        if self.baseline_start is None or self.baseline_end is None:
-            raise RuntimeError("baseline_start and baseline_end must be set before computing baseline")
-        baseline = self.yearly_avg.sel(year=slice(self.baseline_start, self.baseline_end)).mean(dim="year")
-        baseline = baseline.expand_dims(
-            year=self.yearly_avg.year
+    def compute_baseline(self, yearly_avg, baseline_start, baseline_end):
+        if yearly_avg is None:
+            raise RuntimeError(
+                "yearly_avg not computed; call compute_yearly_average() first"
+            )
+        if baseline_start is None or baseline_end is None:
+            raise RuntimeError(
+                "baseline_start and baseline_end must be set before computing baseline"
+            )
+        baseline = yearly_avg.sel(year=slice(baseline_start, baseline_end)).mean(
+            dim="year"
         )
-        baseline.name = "baseline_temperature"
-        self.baseline = baseline.persist()
-        return self.baseline
+        baseline = baseline.expand_dims(year=yearly_avg.year)
+        baseline.name = DIMENSION_TEMPERATURE_BASELINE
+        baseline = baseline.persist()
+        return baseline
 
-    def compute_temperature_anomaly(self):
-        if self.anomaly is not None:
-            return self.anomaly
-        if self.yearly_avg is None or self.baseline is None:
+    def compute_temperature_anomaly(self, yearly_avg, baseline):
+        if yearly_avg is None or baseline is None:
             raise RuntimeError("yearly_avg and baseline must be computed first")
-        anomaly = self.yearly_avg - self.baseline
-        anomaly.name = "temperature_anomaly"
-        self.anomaly = anomaly.persist()
-        return self.anomaly
-
-    def _clear_outdir(self):
-        for fname in os.listdir(self.outdir):
-            fpath = os.path.join(self.outdir, fname)
-            if os.path.isfile(fpath):
-                os.remove(fpath)
+        anomaly = yearly_avg - baseline
+        anomaly.name = DIMENSION_TEMPERATURE_ANOMALY
+        anomaly = anomaly.persist()
+        return anomaly
 
     def _validate_years(self, start, end):
         if start < int("1948") or end > int("1957"):
             raise ValueError("Baseline start and end years outside range 1948-1957 \n")
         if start > end:
             raise ValueError("Baseline start year must be <= end year \n")
-        
+
     def _validate_coordinates(self, lat, lon):
         if not (-90 <= lat <= 90):
             raise ValueError("Latitude must be between -90 and 90")
         if not (-180 <= lon <= 180):
             raise ValueError("Longitude must be between -180 and 180")
 
-
-    def _compute_and_save(self, path, baseline_start, baseline_end, include_anomaly):
+    def _compute_and_save(self, baseline_start, baseline_end, include_anomaly):
         self._validate_years(baseline_start, baseline_end)
-        self.baseline_start = baseline_start
-        self.baseline_end = baseline_end
-
-        self._clear_outdir()
-
-        self.yearly_avg = self.compute_yearly_average(path)
-        self.baseline = self.compute_baseline()
+        baseline_start = baseline_start
+        baseline_start = baseline_end
+        yearly_avg = self.compute_yearly_average()
+        baseline = self.compute_baseline(yearly_avg, baseline_start, baseline_end)
 
         outputs = {
-            self.yearly_avg_file_name: self.yearly_avg,
-            self.baseline_file_name: self.baseline,
+            YEARLY_AVG_FILE_NAME: yearly_avg,
+            BASELINE_FILE_NAME: baseline,
         }
 
         if include_anomaly:
-            self.anomaly = self.compute_temperature_anomaly()
-            outputs[self.anomaly_file_name] = self.anomaly
+            anomaly = self.compute_temperature_anomaly(yearly_avg, baseline)
+            outputs[ANOMALY_FILE_NAME] = anomaly
+        self.repo.write_data(outputs)
 
-        for fname, data in outputs.items():
-            data.to_netcdf(os.path.join(self.outdir, fname))
-        
-        for fname in outputs:
-            path = os.path.join(self.outdir, fname)
-            ds = xr.open_dataset(path, chunks="auto", engine='netcdf4')  
-            print("\n\ndata saved as : \n\n", ds)
+    def compute_and_save_baseline(self, baseline_start, baseline_end):
+        self._compute_and_save(baseline_start, baseline_end, include_anomaly=False)
 
-
-    def compute_and_save_baseline(self, path,baseline_start, baseline_end):
-        self._compute_and_save(path,baseline_start, baseline_end, include_anomaly=False)
-
-    def compute_and_save_anomaly(self, path, baseline_start, baseline_end):
-        self._compute_and_save(path,baseline_start, baseline_end, include_anomaly=True)
+    def compute_and_save_anomaly(self, baseline_start, baseline_end):
+        self._compute_and_save(baseline_start, baseline_end, include_anomaly=True)
 
     def get_location_data(self, lat, lon, file_name, dimension):
         self._validate_coordinates(lat, lon)
-        file_path = os.path.join(self.outdir, file_name)
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"File not found at {file_path}. Run compute_and_save() first.")
-
-        data_ds = xr.open_dataset(file_path, chunks="auto", engine='netcdf4')
-
-        location = data_ds[dimension].sel(
-            lat=lat, 
-            lon=lon, 
-            method='nearest'
-        )
-        
+        data_ds = self.repo.load_output(file_name)
+        location = data_ds[dimension].sel(lat=lat, lon=lon, method="nearest")
         return location
-        
+
     def get_location_anomaly(self, lat, lon):
-        dimension = 'temperature_anomaly'
-        return self.get_location_data(lat, lon, self.anomaly_file_name, dimension)
-    
+        return self.get_location_data(
+            lat, lon, ANOMALY_FILE_NAME, DIMENSION_TEMPERATURE_ANOMALY
+        )
+
     def get_location_baseline(self, lat, lon):
-        dimension = 'baseline_temperature'
-        return self.get_location_data(lat, lon, self.baseline_file_name, dimension)
+        return self.get_location_data(
+            lat, lon, BASELINE_FILE_NAME, DIMENSION_TEMPERATURE_BASELINE
+        )
